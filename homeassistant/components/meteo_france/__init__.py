@@ -1,5 +1,4 @@
 """Support for Meteo-France weather data."""
-# pylint: disable=home-assistant-use-runtime-data  # Uses legacy hass.data[DOMAIN] pattern
 
 import logging
 
@@ -10,7 +9,7 @@ from requests import RequestException
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import CONF_LOCATION_ENTITY, DOMAIN, PLATFORMS
+from .const import CONF_LOCATION_ENTITY, METEO_FRANCE_DATA, PLATFORMS
 from .coordinator import (
     MeteoFranceAlertUpdateCoordinator,
     MeteoFranceConfigEntry,
@@ -25,7 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) -> bool:
     """Set up a Meteo-France account from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+    if (departments_with_alert := hass.data.get(METEO_FRANCE_DATA)) is None:
+        departments_with_alert = hass.data[METEO_FRANCE_DATA] = set()
 
     client = MeteoFranceClient()
 
@@ -62,7 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
     )
     if department is not None and is_valid_warning_department(department):
         # Tracking entries have entry-scoped alert unique ids, so they skip the lock
-        if location_entity_id or not hass.data[DOMAIN].get(department):
+        if location_entity_id or department not in departments_with_alert:
             coordinator_alert = MeteoFranceAlertUpdateCoordinator(
                 hass,
                 entry,
@@ -73,7 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
             await coordinator_alert.async_refresh()
 
             if coordinator_alert.last_update_success and not location_entity_id:
-                hass.data[DOMAIN][department] = True
+                departments_with_alert.add(department)
         else:
             _LOGGER.warning(
                 (
@@ -118,7 +118,7 @@ async def async_unload_entry(
     """Unload a config entry."""
     if entry.runtime_data.alert_coordinator and CONF_LOCATION_ENTITY not in entry.data:
         department = entry.runtime_data.forecast_coordinator.data.position.get("dept")
-        hass.data[DOMAIN][department] = False
+        hass.data[METEO_FRANCE_DATA].discard(department)
         _LOGGER.debug(
             (
                 "Weather alert for depatment %s unloaded and released. It can be added"
@@ -128,9 +128,9 @@ async def async_unload_entry(
         )
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        if not hass.data[DOMAIN]:
-            hass.data.pop(DOMAIN)
+    # Another entry may already have removed the shared registry
+    if unload_ok and not hass.data.get(METEO_FRANCE_DATA):
+        hass.data.pop(METEO_FRANCE_DATA, None)
 
     return unload_ok
 

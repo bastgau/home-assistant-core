@@ -1,6 +1,7 @@
 """Tests for the Meteo-France config flow."""
 
-from unittest.mock import patch
+from collections.abc import Generator
+from unittest.mock import MagicMock, patch
 
 from meteofrance_api.model import Place
 import pytest
@@ -76,8 +77,8 @@ CITY_3 = Place(
 )
 
 
-@pytest.fixture(name="client_single")
-def mock_controller_client_single():
+@pytest.fixture(name="client")
+def mock_controller_client() -> Generator[MagicMock]:
     """Mock a successful client."""
     with patch(
         "homeassistant.components.meteo_france.config_flow.MeteoFranceClient",
@@ -88,35 +89,13 @@ def mock_controller_client_single():
 
 
 @pytest.fixture(autouse=True)
-def mock_setup():
+def mock_setup() -> Generator[None]:
     """Prevent setup."""
     with patch(
         "homeassistant.components.meteo_france.async_setup_entry",
         return_value=True,
     ):
         yield
-
-
-@pytest.fixture(name="client_multiple")
-def mock_controller_client_multiple():
-    """Mock a successful client."""
-    with patch(
-        "homeassistant.components.meteo_france.config_flow.MeteoFranceClient",
-        update=False,
-    ) as service_mock:
-        service_mock.return_value.search_places.return_value = [CITY_2, CITY_3]
-        yield service_mock
-
-
-@pytest.fixture(name="client_empty")
-def mock_controller_client_empty():
-    """Mock a successful client."""
-    with patch(
-        "homeassistant.components.meteo_france.config_flow.MeteoFranceClient",
-        update=False,
-    ) as service_mock:
-        service_mock.return_value.search_places.return_value = []
-        yield service_mock
 
 
 async def _async_start_city_flow(hass: HomeAssistant) -> dict:
@@ -131,16 +110,19 @@ async def _async_start_city_flow(hass: HomeAssistant) -> dict:
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "city"
+    assert result["errors"] == {}
     return result
 
 
-async def test_user(hass: HomeAssistant, client_single) -> None:
+@pytest.mark.usefixtures("client")
+async def test_user(hass: HomeAssistant) -> None:
     """Test user config."""
     result = await _async_start_city_flow(hass)
 
     # test with all provided with search returning only 1 place
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_CITY: CITY_1_POSTAL}
+        result["flow_id"],
+        user_input={CONF_CITY: CITY_1_POSTAL},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["result"].unique_id == f"{CITY_1_LAT}, {CITY_1_LON}"
@@ -149,13 +131,17 @@ async def test_user(hass: HomeAssistant, client_single) -> None:
     assert result["data"][CONF_LONGITUDE] == str(CITY_1_LON)
 
 
-async def test_user_list(hass: HomeAssistant, client_multiple) -> None:
+async def test_user_list(hass: HomeAssistant, client: MagicMock) -> None:
     """Test user config."""
+
+    client.return_value.search_places.return_value = [CITY_2, CITY_3]
+
     result = await _async_start_city_flow(hass)
 
     # test with all provided with search returning more than 1 place
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_CITY: CITY_2_NAME}
+        result["flow_id"],
+        user_input={CONF_CITY: CITY_2_NAME},
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "cities"
@@ -171,48 +157,50 @@ async def test_user_list(hass: HomeAssistant, client_multiple) -> None:
     assert result["data"][CONF_LONGITUDE] == str(CITY_3_LON)
 
 
-async def test_search_failed(hass: HomeAssistant, client_empty) -> None:
+async def test_search_failed(hass: HomeAssistant, client: MagicMock) -> None:
     """Test error displayed if no result in search."""
+    client.return_value.search_places.return_value = []
+
     result = await _async_start_city_flow(hass)
+
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_CITY: CITY_1_POSTAL}
+        result["flow_id"],
+        user_input={CONF_CITY: CITY_1_POSTAL},
     )
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_CITY: "empty"}
 
+    # recover
+    client.return_value.search_places.return_value = [CITY_1]
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_CITY: CITY_1_POSTAL},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == f"{CITY_1_LAT}, {CITY_1_LON}"
+    assert result["title"] == f"{CITY_1}"
+    assert result["data"][CONF_LATITUDE] == str(CITY_1_LAT)
+    assert result["data"][CONF_LONGITUDE] == str(CITY_1_LON)
 
-async def test_abort_if_already_setup(hass: HomeAssistant, client_single) -> None:
+
+@pytest.mark.usefixtures("client")
+async def test_abort_if_already_setup(hass: HomeAssistant) -> None:
     """Test we abort if already setup."""
     MockConfigEntry(
         domain=DOMAIN,
         data={CONF_LATITUDE: CITY_1_LAT, CONF_LONGITUDE: CITY_1_LON},
         unique_id=f"{CITY_1_LAT}, {CITY_1_LON}",
     ).add_to_hass(hass)
+    result = await _async_start_city_flow(hass)
 
     # Should fail, same CITY same postal code (flow)
-    result = await _async_start_city_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_CITY: CITY_1_POSTAL}
+        result["flow_id"],
+        user_input={CONF_CITY: CITY_1_POSTAL},
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-
-
-@pytest.fixture(name="tracker")
-def mock_tracker(
-    hass: HomeAssistant, entity_registry: er.EntityRegistry
-) -> er.RegistryEntry:
-    """Register a device tracker with a location."""
-    entry = entity_registry.async_get_or_create(
-        "device_tracker", "test", "phone", suggested_object_id="phone"
-    )
-    hass.states.async_set(
-        entry.entity_id,
-        "not_home",
-        {ATTR_LATITUDE: CITY_1_LAT, ATTR_LONGITUDE: CITY_1_LON},
-    )
-    return entry
 
 
 async def _async_start_entity_flow(hass: HomeAssistant) -> dict:

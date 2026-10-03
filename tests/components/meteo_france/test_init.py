@@ -1,308 +1,117 @@
-"""Tests for Météo-France entries following a location entity."""
+"""Test Météo France init."""
 
-from datetime import timedelta
-from typing import Any
-from unittest.mock import MagicMock, call
+from collections.abc import Generator
+from unittest.mock import patch
 
-from freezegun.api import FrozenDateTimeFactory
 import pytest
 
-from homeassistant.components.meteo_france.const import CONF_LOCATION_ENTITY, DOMAIN
-from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import ATTR_LATITUDE, ATTR_LONGITUDE
+from homeassistant.components.meteo_france.const import (
+    CONF_CITY,
+    DOMAIN,
+    METEO_FRANCE_DATA,
+)
+from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 
-from tests.common import MockConfigEntry, async_fire_time_changed
-
-TRACKER_ENTITY_ID = "device_tracker.phone"
-LATITUDE = 45.90417
-LONGITUDE = 6.42306
-# Roughly 111 km per degree of latitude
-LATITUDE_500_M = LATITUDE + 0.0045
-LATITUDE_2_KM = LATITUDE + 0.018
-LATITUDE_4_KM = LATITUDE + 0.036
-LATITUDE_4_5_KM = LATITUDE + 0.0405
-LATITUDE_6_KM = LATITUDE + 0.054
-LATITUDE_12_KM = LATITUDE + 0.108
-LATITUDE_18_KM = LATITUDE + 0.162
+from tests.common import MockConfigEntry
 
 
-def _location(latitude: float) -> dict[str, float]:
-    """Return location attributes at the given latitude."""
-    return {ATTR_LATITUDE: latitude, ATTR_LONGITUDE: LONGITUDE}
+@pytest.fixture(autouse=True)
+def override_platforms() -> Generator[None]:
+    """Override PLATFORMS."""
+    with patch("homeassistant.components.meteo_france.PLATFORMS", []):
+        yield
 
 
-@pytest.fixture(name="tracker")
-def mock_tracker(
-    hass: HomeAssistant, entity_registry: er.EntityRegistry
-) -> er.RegistryEntry:
-    """Register a device tracker located at the initial position."""
-    entry = entity_registry.async_get_or_create(
-        "device_tracker", "test", "phone", suggested_object_id="phone"
-    )
-    hass.states.async_set(entry.entity_id, "not_home", _location(LATITUDE))
-    return entry
-
-
-@pytest.fixture(name="tracking_entry")
-def mock_tracking_entry(
-    hass: HomeAssistant, tracker: er.RegistryEntry
-) -> MockConfigEntry:
-    """Create a config entry following the device tracker."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="phone",
-        unique_id=tracker.id,
-        data={CONF_LOCATION_ENTITY: tracker.id},
-    )
-    entry.add_to_hass(hass)
-    return entry
-
-
-@pytest.fixture(name="broken_entities")
-def mock_broken_entities(
-    hass: HomeAssistant, entity_registry: er.EntityRegistry
-) -> dict[str, str]:
-    """Register unusable location entities and map their entity id to registry id."""
-    disabled = entity_registry.async_get_or_create(
-        "device_tracker",
-        "test",
-        "disabled",
-        suggested_object_id="disabled",
-        disabled_by=er.RegistryEntryDisabler.USER,
-    )
-    no_location = entity_registry.async_get_or_create(
-        "device_tracker", "test", "no_location", suggested_object_id="no_location"
-    )
-    hass.states.async_set(no_location.entity_id, "home")
-    removed = entity_registry.async_get_or_create(
-        "device_tracker", "test", "removed", suggested_object_id="removed"
-    )
-    entity_registry.async_remove(removed.entity_id)
-    return {
-        disabled.entity_id: disabled.id,
-        no_location.entity_id: no_location.id,
-        removed.entity_id: removed.id,
+def _second_city(hass: HomeAssistant) -> MockConfigEntry:
+    """Return a second entry for a different city in the same department."""
+    entry_data = {
+        CONF_CITY: "Le Grand-Bornand",
+        CONF_LATITUDE: 45.94179,
+        CONF_LONGITUDE: 6.42794,
     }
-
-
-async def _async_setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
-    """Set up the entry and check it loaded."""
-    await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    assert entry.state is ConfigEntryState.LOADED
-
-
-async def test_setup(
-    hass: HomeAssistant,
-    entity_registry: er.EntityRegistry,
-    patch_requests: MagicMock,
-    tracking_entry: MockConfigEntry,
-) -> None:
-    """Test the entry uses the entity location and position-independent ids."""
-    await _async_setup(hass, tracking_entry)
-
-    assert patch_requests.get_forecast.call_args == call(LATITUDE, LONGITUDE)
-    assert patch_requests.get_rain.call_args == call(LATITUDE, LONGITUDE)
-    unique_ids = {
-        entity.unique_id
-        for entity in er.async_entries_for_config_entry(
-            entity_registry, tracking_entry.entry_id
-        )
-    }
-    assert tracking_entry.entry_id in unique_ids
-    assert f"{tracking_entry.entry_id}_temperature" in unique_ids
-    assert f"{tracking_entry.entry_id}_weather_alert" in unique_ids
-    assert all(uid.startswith(tracking_entry.entry_id) for uid in unique_ids)
-
-
-@pytest.mark.parametrize(
-    ("entity_id", "expected_state"),
-    [
-        pytest.param(
-            "device_tracker.no_location",
-            ConfigEntryState.SETUP_RETRY,
-            id="no_location",
-        ),
-        pytest.param(
-            "device_tracker.disabled", ConfigEntryState.SETUP_ERROR, id="disabled"
-        ),
-        pytest.param(
-            "device_tracker.removed", ConfigEntryState.SETUP_ERROR, id="removed"
-        ),
-    ],
-)
-async def test_setup_unusable_entity(
-    hass: HomeAssistant,
-    broken_entities: dict[str, str],
-    entity_id: str,
-    expected_state: ConfigEntryState,
-) -> None:
-    """Test setup fails when the location entity cannot be used."""
-    entry = MockConfigEntry(
+    config_entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id=broken_entities[entity_id],
-        data={CONF_LOCATION_ENTITY: broken_entities[entity_id]},
+        source=SOURCE_USER,
+        unique_id=f"{entry_data[CONF_LATITUDE], entry_data[CONF_LONGITUDE]}",
+        title=entry_data[CONF_CITY],
+        data=entry_data,
     )
-    entry.add_to_hass(hass)
-
-    await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-
-    assert entry.state is expected_state
+    config_entry.add_to_hass(hass)
+    return config_entry
 
 
-def _forecast_latitudes(client: MagicMock) -> set[float]:
-    """Return the latitudes forecasts were requested for."""
-    return {args[0] for args, _ in client.get_forecast.call_args_list}
-
-
-@pytest.mark.parametrize(
-    ("attributes", "expected_latitudes"),
-    [
-        pytest.param(_location(LATITUDE_500_M), {LATITUDE}, id="small_move"),
-        pytest.param(
-            _location(LATITUDE_4_5_KM), {LATITUDE, LATITUDE_4_5_KM}, id="drift"
-        ),
-        pytest.param({}, {LATITUDE}, id="no_location"),
-    ],
-)
-async def test_refresh_reloads_after_drift(
+async def test_only_one_city_per_department_provides_alerts(
     hass: HomeAssistant,
-    freezer: FrozenDateTimeFactory,
-    entity_registry: er.EntityRegistry,
-    patch_requests: MagicMock,
-    tracking_entry: MockConfigEntry,
-    attributes: dict[str, Any],
-    expected_latitudes: set[float],
+    config_entry: MockConfigEntry,
 ) -> None:
-    """Test moves below the immediate threshold are applied on the next refresh."""
-    await _async_setup(hass, tracking_entry)
-    entities = er.async_entries_for_config_entry(
-        entity_registry, tracking_entry.entry_id
-    )
-
-    hass.states.async_set(TRACKER_ENTITY_ID, "not_home", attributes)
-    await hass.async_block_till_done()
-    assert _forecast_latitudes(patch_requests) == {LATITUDE}
-
-    # Refresh is scheduled on a truncated loop time plus jitter, so go past it
-    freezer.tick(timedelta(minutes=16))
-    async_fire_time_changed(hass)
+    """Test the second city in a department does not also provide alerts."""
+    await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert tracking_entry.state is ConfigEntryState.LOADED
-    assert _forecast_latitudes(patch_requests) == expected_latitudes
-    assert (
-        er.async_entries_for_config_entry(entity_registry, tracking_entry.entry_id)
-        == entities
-    )
+    assert config_entry.runtime_data.alert_coordinator is not None
+
+    second_entry = _second_city(hass)
+    await hass.config_entries.async_setup(second_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert second_entry.state is ConfigEntryState.LOADED
+    assert second_entry.runtime_data.alert_coordinator is None
 
 
-@pytest.mark.parametrize(
-    ("latitudes", "expected_latitudes"),
-    [
-        pytest.param([LATITUDE_4_KM], {LATITUDE}, id="small_move"),
-        pytest.param([LATITUDE_6_KM], {LATITUDE, LATITUDE_6_KM}, id="large_move"),
-        pytest.param(
-            [LATITUDE_2_KM, LATITUDE_4_KM, LATITUDE_6_KM],
-            {LATITUDE, LATITUDE_6_KM},
-            id="small_moves_adding_up",
-        ),
-    ],
-)
-async def test_large_move_reloads_immediately(
+async def test_unload_releases_the_department(
     hass: HomeAssistant,
-    freezer: FrozenDateTimeFactory,
-    patch_requests: MagicMock,
-    tracking_entry: MockConfigEntry,
-    latitudes: list[float],
-    expected_latitudes: set[float],
+    config_entry: MockConfigEntry,
 ) -> None:
-    """Test moves adding up beyond the threshold reload without waiting a refresh."""
-    # Without polling, only location changes can trigger a reload
-    hass.config_entries.async_update_entry(tracking_entry, pref_disable_polling=True)
-    await _async_setup(hass, tracking_entry)
-    freezer.tick(timedelta(minutes=16))
-
-    for latitude in latitudes:
-        hass.states.async_set(TRACKER_ENTITY_ID, "not_home", _location(latitude))
-        await hass.async_block_till_done()
-
-    assert _forecast_latitudes(patch_requests) == expected_latitudes
-
-
-async def test_large_move_waits_for_cooldown(
-    hass: HomeAssistant,
-    freezer: FrozenDateTimeFactory,
-    patch_requests: MagicMock,
-    tracking_entry: MockConfigEntry,
-) -> None:
-    """Test a large move right after loading is applied on the next refresh."""
-    await _async_setup(hass, tracking_entry)
-
-    hass.states.async_set(TRACKER_ENTITY_ID, "not_home", _location(LATITUDE_6_KM))
-    await hass.async_block_till_done()
-    assert _forecast_latitudes(patch_requests) == {LATITUDE}
-
-    freezer.tick(timedelta(minutes=16))
-    async_fire_time_changed(hass)
+    """Test unloading releases the department so another city can claim it."""
+    await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert _forecast_latitudes(patch_requests) == {LATITUDE, LATITUDE_6_KM}
+    assert hass.data[METEO_FRANCE_DATA]
 
-
-async def test_fast_moves_reload_once(
-    hass: HomeAssistant,
-    freezer: FrozenDateTimeFactory,
-    patch_requests: MagicMock,
-    tracking_entry: MockConfigEntry,
-) -> None:
-    """Test a quick journey triggers a single reload within the cooldown."""
-    # Without polling, only location changes can trigger a reload
-    hass.config_entries.async_update_entry(tracking_entry, pref_disable_polling=True)
-    await _async_setup(hass, tracking_entry)
-    freezer.tick(timedelta(minutes=16))
-
-    for latitude in (LATITUDE_6_KM, LATITUDE_12_KM, LATITUDE_18_KM):
-        hass.states.async_set(TRACKER_ENTITY_ID, "not_home", _location(latitude))
-        await hass.async_block_till_done()
-        freezer.tick(timedelta(minutes=2))
-
-    assert _forecast_latitudes(patch_requests) == {LATITUDE, LATITUDE_6_KM}
-
-
-async def test_entity_removed(
-    hass: HomeAssistant,
-    entity_registry: er.EntityRegistry,
-    tracking_entry: MockConfigEntry,
-) -> None:
-    """Test removing the location entity reloads the entry into an error."""
-    await _async_setup(hass, tracking_entry)
-
-    entity_registry.async_remove(TRACKER_ENTITY_ID)
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert tracking_entry.state is ConfigEntryState.SETUP_ERROR
+    # The last entry is gone, so the shared registry is cleaned up entirely.
+    assert METEO_FRANCE_DATA not in hass.data
+
+    second_entry = _second_city(hass)
+    await hass.config_entries.async_setup(second_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert second_entry.runtime_data.alert_coordinator is not None
 
 
-async def test_alert_shared_with_fixed_entry(
+async def test_tracking_entry_provides_alerts_alongside_fixed_entry(
     hass: HomeAssistant,
-    entity_registry: er.EntityRegistry,
     config_entry: MockConfigEntry,
     tracking_entry: MockConfigEntry,
 ) -> None:
-    """Test fixed and tracking entries in the same department both get alerts."""
+    """Test a tracking entry gets alerts without claiming the department."""
     # Setting up one entry sets up every entry of the domain
-    await _async_setup(hass, config_entry)
-    assert tracking_entry.state is ConfigEntryState.LOADED
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
 
-    assert entity_registry.async_get_entity_id("sensor", DOMAIN, "32 Weather alert")
-    assert entity_registry.async_get_entity_id(
-        "sensor", DOMAIN, f"{tracking_entry.entry_id}_weather_alert"
-    )
+    assert config_entry.runtime_data.alert_coordinator is not None
+    assert tracking_entry.runtime_data.alert_coordinator is not None
+    assert hass.data[METEO_FRANCE_DATA] == {"74"}
 
-    # Unloading the tracking entry must keep the fixed entry's department lock
-    await hass.config_entries.async_unload(tracking_entry.entry_id)
-    assert hass.data[DOMAIN]["74"] is True
+    assert await hass.config_entries.async_unload(tracking_entry.entry_id)
+    assert hass.data[METEO_FRANCE_DATA] == {"74"}
+
+
+async def test_unload_tracking_entry_after_department_released(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    tracking_entry: MockConfigEntry,
+) -> None:
+    """Test unloading still works once the shared registry has been removed."""
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    assert METEO_FRANCE_DATA not in hass.data
+
+    assert await hass.config_entries.async_unload(tracking_entry.entry_id)
+    assert tracking_entry.state is ConfigEntryState.NOT_LOADED

@@ -26,6 +26,7 @@ MODEL = "Météo-France mobile API"
 MANUFACTURER = "Météo-France"
 
 CONF_CITY = "city"
+CONF_LOCATION_ENTITY = "location_entity"
 FORECAST_MODE_HOURLY = "hourly"
 FORECAST_MODE_DAILY = "daily"
 

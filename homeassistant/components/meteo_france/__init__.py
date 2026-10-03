@@ -10,13 +10,14 @@ from requests import RequestException
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN, PLATFORMS
+from .const import CONF_LOCATION_ENTITY, DOMAIN, PLATFORMS
 from .coordinator import (
     MeteoFranceAlertUpdateCoordinator,
     MeteoFranceConfigEntry,
     MeteoFranceData,
     MeteoFranceForecastUpdateCoordinator,
     MeteoFranceRainUpdateCoordinator,
+    async_get_location,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,7 +29,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
 
     client = MeteoFranceClient()
 
-    coordinator_forecast = MeteoFranceForecastUpdateCoordinator(hass, entry, client)
+    latitude, longitude, location_entity_id = async_get_location(hass, entry)
+    coordinator_forecast = MeteoFranceForecastUpdateCoordinator(
+        hass, entry, client, latitude, longitude, location_entity_id
+    )
     coordinator_rain = None
     coordinator_alert = None
 
@@ -39,7 +43,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
         raise ConfigEntryNotReady
 
     # Check rain forecast.
-    coordinator_rain = MeteoFranceRainUpdateCoordinator(hass, entry, client)
+    coordinator_rain = MeteoFranceRainUpdateCoordinator(
+        hass, entry, client, latitude, longitude
+    )
     try:
         await coordinator_rain._async_refresh(log_failures=False)  # noqa: SLF001
     except RequestException:
@@ -55,7 +61,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
         department,
     )
     if department is not None and is_valid_warning_department(department):
-        if not hass.data[DOMAIN].get(department):
+        # Tracking entries have entry-scoped alert unique ids, so they skip the lock
+        if location_entity_id or not hass.data[DOMAIN].get(department):
             coordinator_alert = MeteoFranceAlertUpdateCoordinator(
                 hass,
                 entry,
@@ -65,7 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
 
             await coordinator_alert.async_refresh()
 
-            if coordinator_alert.last_update_success:
+            if coordinator_alert.last_update_success and not location_entity_id:
                 hass.data[DOMAIN][department] = True
         else:
             _LOGGER.warning(
@@ -97,6 +104,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeteoFranceConfigEntry) 
         alert_coordinator=coordinator_alert,
     )
 
+    if location_entity_id:
+        coordinator_forecast.async_track_location()
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -106,7 +116,7 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: MeteoFranceConfigEntry
 ) -> bool:
     """Unload a config entry."""
-    if entry.runtime_data.alert_coordinator:
+    if entry.runtime_data.alert_coordinator and CONF_LOCATION_ENTITY not in entry.data:
         department = entry.runtime_data.forecast_coordinator.data.position.get("dept")
         hass.data[DOMAIN][department] = False
         _LOGGER.debug(

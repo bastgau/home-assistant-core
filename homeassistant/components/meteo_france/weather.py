@@ -42,7 +42,11 @@ from .const import (
     MANUFACTURER,
     MODEL,
 )
-from .coordinator import MeteoFranceConfigEntry, MeteoFranceForecastUpdateCoordinator
+from .coordinator import (
+    MeteoFranceConfigEntry,
+    MeteoFranceForecastUpdateCoordinator,
+    get_unique_id_prefix,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -88,7 +92,10 @@ class MeteoFranceWeather(
         """Initialise the platform with a data instance and station name."""
         super().__init__(coordinator)
         pos = self.coordinator.data.position
-        self._attr_unique_id = f"{pos['lat']},{pos['lon']}"
+        self._attr_unique_id = (
+            get_unique_id_prefix(coordinator.config_entry)
+            or f"{pos['lat']},{pos['lon']}"
+        )
 
     @callback
     @override

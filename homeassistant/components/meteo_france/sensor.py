@@ -39,7 +39,11 @@ from .const import (
     MANUFACTURER,
     MODEL,
 )
-from .coordinator import MeteoFranceAlertUpdateCoordinator, MeteoFranceConfigEntry
+from .coordinator import (
+    MeteoFranceAlertUpdateCoordinator,
+    MeteoFranceConfigEntry,
+    get_unique_id_prefix,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -229,7 +233,11 @@ class MeteoFranceSensor[_DataT: Rain | Forecast | CurrentPhenomenons](
         self.entity_description = description
         if hasattr(coordinator.data, "position"):
             pos = coordinator.data.position
-            self._attr_unique_id = f"{pos['lat']},{pos['lon']}_{description.key}"
+            prefix = (
+                get_unique_id_prefix(coordinator.config_entry)
+                or f"{pos['lat']},{pos['lon']}"
+            )
+            self._attr_unique_id = f"{prefix}_{description.key}"
 
     @property
     @override
@@ -314,7 +322,10 @@ class MeteoFranceAlertSensor(MeteoFranceSensor[CurrentPhenomenons]):
     ) -> None:
         """Initialize the Meteo-France sensor."""
         super().__init__(coordinator, description)
-        self._attr_unique_id = f"{self.coordinator.data.domain_id} Weather alert"
+        if prefix := get_unique_id_prefix(coordinator.config_entry):
+            self._attr_unique_id = f"{prefix}_{description.key}"
+        else:
+            self._attr_unique_id = f"{self.coordinator.data.domain_id} Weather alert"
 
     @property
     @override

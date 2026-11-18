@@ -5,19 +5,22 @@
     },
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "empty": "No result in city search: please check the city field"
+      "empty": "No result in city search: please check the city field",
+      "entity_disabled": "The selected entity is disabled. Please enable it first.",
+      "entity_no_coordinates": "The selected entity does not have location coordinates.",
+      "entity_not_found": "The selected entity could not be found. Please choose a different entity."
     },
     "step": {
       "cities": {
         "data": {
-          "city": "[%key:component::meteo_france::config::step::user::data::city%]"
+          "city": "[%key:component::meteo_france::config::step::city::data::city%]"
         },
         "data_description": {
           "city": "The city you want weather forecasts for."
         },
         "description": "Several cities match your search."
       },
-      "user": {
+      "city": {
         "data": {
           "city": "City"
         },
@@ -25,6 +28,23 @@
           "city": "Postal code or city name. Postal codes are only supported in France."
         },
         "description": "Search for the city you want weather forecasts for."
+      },
+      "user": {
+        "description": "Choose how to set the weather location.",
+        "menu_options": {
+          "city": "Fixed location",
+          "entity": "Follow a person or device"
+        }
+      },
+      "entity": {
+        "data": {
+          "location_entity": "Location entity"
+        },
+        "data_description": {
+          "location_entity": "The person or device tracker whose location is used for the weather."
+        },
+        "description": "The weather location follows the selected person or device tracker.",
+        "title": "Follow a person or device"
       }
     }
   },
@@ -74,6 +94,15 @@
   "exceptions": {
     "update_failed": {
       "message": "An error occurred while fetching data from Météo-France."
+    },
+    "entity_disabled": {
+      "message": "The location entity is disabled. Please enable it or remove this integration entry and set it up again."
+    },
+    "entity_not_found": {
+      "message": "The location entity could not be found. Please remove this integration entry and set it up again."
+    },
+    "entity_unavailable": {
+      "message": "The location entity {entity_id} is not available or does not have location coordinates. Setup will be retried."
     }
   }
 }

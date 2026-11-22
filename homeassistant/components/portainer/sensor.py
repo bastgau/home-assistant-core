@@ -438,11 +438,10 @@ async def async_setup_entry(
         assert ds_coordinator is not None
 
     disable_volume_size = entry.data.get(CONF_DISABLE_VOLUME_SIZE, False)
-    docker_disk_space_sensors = tuple(
-        entity_description
-        for entity_description in DOCKER_SYSTEM_DISK_SPACE_SENSORS
-        if not disable_volume_size
-        or entity_description.key != "volume_disk_usage_total"
+    # No df request at all when disabled: without these sensors, nothing
+    # subscribes to the disk space coordinator, so it never polls
+    docker_disk_space_sensors = (
+        () if disable_volume_size else DOCKER_SYSTEM_DISK_SPACE_SENSORS
     )
     volume_sensors = tuple(
         entity_description

@@ -21,7 +21,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_FETCH_VOLUME_SIZE
+from .const import CONF_DISABLE_VOLUME_SIZE
 from .coordinator import (
     PortainerConfigEntry,
     PortainerContainerData,
@@ -450,7 +450,7 @@ async def async_setup_entry(
     if TYPE_CHECKING:
         assert ds_coordinator is not None
 
-    fetch_volume_size = entry.data.get(CONF_FETCH_VOLUME_SIZE, True)
+    fetch_volume_size = not entry.data.get(CONF_DISABLE_VOLUME_SIZE, False)
     docker_disk_space_sensors = tuple(
         entity_description
         for entity_description in DOCKER_SYSTEM_DISK_SPACE_SENSORS

@@ -13,7 +13,6 @@ from pytest_homeassistant.common import MockConfigEntry, async_load_json_array_f
 
 from homeassistant.components.portainer.const import (
     CONF_ENDPOINT_ID,
-    CONF_FETCH_VOLUME_SIZE,
     DOMAIN,
     SUBENTRY_TYPE_ENVIRONMENT,
 )
@@ -29,14 +28,12 @@ MOCK_USER_SETUP = {
     CONF_URL: "https://127.0.0.1:9000/",
     CONF_API_TOKEN: "test_api_token",
     CONF_VERIFY_SSL: True,
-    CONF_FETCH_VOLUME_SIZE: True,
 }
 
 USER_INPUT_RECONFIGURE = {
     CONF_URL: "https://new_domain:9000/",
     CONF_API_TOKEN: "new_api_key",
     CONF_VERIFY_SSL: True,
-    CONF_FETCH_VOLUME_SIZE: False,
 }
 
 
@@ -58,7 +55,7 @@ async def test_form(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "https://127.0.0.1:9000/"
-    assert result["data"] == {**MOCK_TEST_CONFIG, CONF_FETCH_VOLUME_SIZE: True}
+    assert result["data"] == MOCK_TEST_CONFIG
     assert result["result"].unique_id == TEST_INSTANCE_ID
     assert [
         (subentry.subentry_type, subentry.title, subentry.unique_id)
@@ -123,7 +120,7 @@ async def test_form_exceptions(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "https://127.0.0.1:9000/"
-    assert result["data"] == {**MOCK_TEST_CONFIG, CONF_FETCH_VOLUME_SIZE: True}
+    assert result["data"] == MOCK_TEST_CONFIG
 
 
 @pytest.mark.usefixtures("mock_setup_entry")
@@ -268,7 +265,6 @@ async def test_full_flow_reconfigure(
     assert mock_config_entry.data[CONF_API_TOKEN] == "new_api_key"
     assert mock_config_entry.data[CONF_URL] == "https://new_domain:9000/"
     assert mock_config_entry.data[CONF_VERIFY_SSL] is True
-    assert mock_config_entry.data[CONF_FETCH_VOLUME_SIZE] is False
     assert len(mock_setup_entry.mock_calls) == 1
 
 

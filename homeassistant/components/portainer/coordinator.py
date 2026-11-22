@@ -48,7 +48,12 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_FETCH_VOLUME_SIZE, CONTAINER_STATE_ACTIONS, DEFAULT_NAME, DOMAIN
+from .const import (
+    CONF_DISABLE_VOLUME_SIZE,
+    CONTAINER_STATE_ACTIONS,
+    DEFAULT_NAME,
+    DOMAIN,
+)
 from .util import sanitize_container_name
 
 type PortainerConfigEntry = ConfigEntry[PortainerCoordinator]
@@ -868,7 +873,9 @@ class PortainerDockerDiskSpaceCoordinator(
             try:
                 system_df = await self.portainer.docker_system_df(
                     endpoint.id,
-                    verbose=self.config_entry.data.get(CONF_FETCH_VOLUME_SIZE, True),
+                    verbose=not self.config_entry.data.get(
+                        CONF_DISABLE_VOLUME_SIZE, False
+                    ),
                 )
             except PortainerTimeoutError:
                 _LOGGER.warning(

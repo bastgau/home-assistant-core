@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock
 
+from pyportainer.models.docker import DockerDFType
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
@@ -75,7 +76,9 @@ async def test_volume_size_not_fetched_when_disabled(
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    mock_portainer_client.docker_system_df.assert_called_with(1, verbose=False)
+    mock_portainer_client.docker_system_df.assert_any_call(
+        1, data_type=DockerDFType.VOLUME, verbose=False
+    )
     assert hass.states.get(DISK_USAGE_ENTITY_ID) is not None
     assert hass.states.get(VOLUME_SIZE_ENTITY_ID) is None
     assert hass.states.get(VOLUME_DISK_USAGE_ENTITY_ID) is None
@@ -89,5 +92,7 @@ async def test_volume_size_fetched_by_default(
     """Test volume sizes are measured when the option is not set."""
     await setup_integration(hass, mock_config_entry)
 
-    mock_portainer_client.docker_system_df.assert_called_with(1, verbose=True)
+    mock_portainer_client.docker_system_df.assert_any_call(
+        1, data_type=DockerDFType.VOLUME, verbose=True
+    )
     assert hass.states.get(VOLUME_SIZE_ENTITY_ID) is not None

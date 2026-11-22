@@ -9,6 +9,7 @@ API_MAX_RETRIES = 3
 
 SUBENTRY_TYPE_ENVIRONMENT = "environment"
 CONF_ENDPOINT_ID = "endpoint_id"
+CONF_DISABLE_VOLUME_SIZE = "disable_volume_size"
 
 CONTAINER_STATE_ACTIONS: dict[str, DockerContainerState | None] = {
     "start": DockerContainerState.RUNNING,

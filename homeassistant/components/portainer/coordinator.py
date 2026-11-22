@@ -46,7 +46,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import CONTAINER_STATE_ACTIONS, DEFAULT_NAME, DOMAIN
+from .const import CONF_DISABLE_VOLUME_SIZE, CONTAINER_STATE_ACTIONS, DEFAULT_NAME, DOMAIN
 from .util import sanitize_container_name
 
 type PortainerConfigEntry = ConfigEntry[PortainerCoordinator]
@@ -316,7 +316,7 @@ class PortainerCoordinator(
                     self.portainer.docker_version(endpoint.id),
                     self.portainer.docker_info(endpoint.id),
                     self.portainer.docker_system_df(
-                        endpoint.id, data_type=DockerDFType.VOLUME, verbose=True
+                        endpoint.id, data_type=DockerDFType.VOLUME, verbose=not self.config_entry.data.get(CONF_DISABLE_VOLUME_SIZE, False)
                     ),
                     self.portainer.get_volumes(endpoint.id),
                 )

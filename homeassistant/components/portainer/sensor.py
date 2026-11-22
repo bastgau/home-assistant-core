@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
 
+from .const import CONF_FETCH_VOLUME_SIZE
 from .coordinator import (
     PortainerConfigEntry,
     PortainerContainerData,
@@ -449,6 +450,14 @@ async def async_setup_entry(
     if TYPE_CHECKING:
         assert ds_coordinator is not None
 
+    fetch_volume_size = entry.data.get(CONF_FETCH_VOLUME_SIZE, True)
+    docker_disk_space_sensors = tuple(
+        entity_description
+        for entity_description in DOCKER_SYSTEM_DISK_SPACE_SENSORS
+        if fetch_volume_size or entity_description.key != "volume_disk_usage_total"
+    )
+    volume_disk_space_sensors = VOLUME_DISK_SPACE_SENSORS if fetch_volume_size else ()
+
     def _async_add_new_endpoints(endpoints: list[PortainerCoordinatorData]) -> None:
         """Add new endpoint sensors."""
         async_add_entities_by_subentry(
@@ -474,7 +483,7 @@ async def async_setup_entry(
                         ),
                         endpoint.id,
                     )
-                    for entity_description in DOCKER_SYSTEM_DISK_SPACE_SENSORS
+                    for entity_description in docker_disk_space_sensors
                     for endpoint in endpoints
                 ),
             ),
@@ -557,7 +566,7 @@ async def async_setup_entry(
                         endpoint.id,
                     )
                     for (endpoint, volume) in volumes
-                    for entity_description in VOLUME_DISK_SPACE_SENSORS
+                    for entity_description in volume_disk_space_sensors
                 ),
             ),
         )

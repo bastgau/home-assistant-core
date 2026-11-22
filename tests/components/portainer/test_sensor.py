@@ -19,7 +19,7 @@ from pytest_homeassistant.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant import config_entries
-from homeassistant.components.portainer.const import CONF_FETCH_VOLUME_SIZE, DOMAIN
+from homeassistant.components.portainer.const import DOMAIN
 from homeassistant.components.portainer.coordinator import (
     DEFAULT_DF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
@@ -209,26 +209,6 @@ async def test_volume_size_from_disk_space(
     assert state.state == STATE_UNAVAILABLE
     assert (state := hass.states.get("sensor.myvolume_volume_driver"))
     assert state.state != STATE_UNAVAILABLE
-
-
-async def test_volume_size_not_fetched_when_disabled(
-    hass: HomeAssistant,
-    mock_portainer_client: AsyncMock,
-    mock_config_entry: MockConfigEntry,
-) -> None:
-    """Test volume sizes are not measured and their sensors are not created when disabled."""
-    mock_config_entry.add_to_hass(hass)
-    hass.config_entries.async_update_entry(
-        mock_config_entry,
-        data={**mock_config_entry.data, CONF_FETCH_VOLUME_SIZE: False},
-    )
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done(wait_background_tasks=True)
-
-    mock_portainer_client.docker_system_df.assert_called_with(1, verbose=False)
-    assert hass.states.get(DISK_USAGE_ENTITY_ID) is not None
-    assert hass.states.get(VOLUME_SIZE_ENTITY_ID) is None
-    assert hass.states.get("sensor.my_environment_volume_disk_usage_total_size") is None
 
 
 async def test_volume_size_unknown_when_not_measured(

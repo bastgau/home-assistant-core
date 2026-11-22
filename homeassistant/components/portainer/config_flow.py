@@ -34,12 +34,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .const import (
-    CONF_DISABLE_VOLUME_SIZE,
-    CONF_ENDPOINT_ID,
-    DOMAIN,
-    SUBENTRY_TYPE_ENVIRONMENT,
-)
+from .const import CONF_DISABLE_VOLUME_SIZE, CONF_ENDPOINT_ID, DOMAIN, SUBENTRY_TYPE_ENVIRONMENT
 from .coordinator import PortainerConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -193,9 +188,7 @@ class PortainerConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_URL: reconf_entry.data[CONF_URL],
             CONF_API_TOKEN: reconf_entry.data[CONF_API_TOKEN],
             CONF_VERIFY_SSL: reconf_entry.data[CONF_VERIFY_SSL],
-            CONF_DISABLE_VOLUME_SIZE: reconf_entry.data.get(
-                CONF_DISABLE_VOLUME_SIZE, False
-            ),
+            CONF_DISABLE_VOLUME_SIZE: reconf_entry.data.get(CONF_DISABLE_VOLUME_SIZE, False),
         }
 
         if user_input:
@@ -225,9 +218,7 @@ class PortainerConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_URL: user_input[CONF_URL],
                         CONF_API_TOKEN: user_input[CONF_API_TOKEN],
                         CONF_VERIFY_SSL: user_input[CONF_VERIFY_SSL],
-                        CONF_DISABLE_VOLUME_SIZE: user_input.get(
-                            CONF_DISABLE_VOLUME_SIZE, False
-                        ),
+                        CONF_DISABLE_VOLUME_SIZE: user_input.get(CONF_DISABLE_VOLUME_SIZE, False),
                     },
                 )
 

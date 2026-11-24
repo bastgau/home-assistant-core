@@ -126,7 +126,7 @@ async def async_unload_entry(
         )
 
     await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
-    if not hass.data[METEO_FRANCE_DATA]:
+    if not hass.data.get(METEO_FRANCE_DATA, True):
         hass.data.pop(METEO_FRANCE_DATA)
 
 

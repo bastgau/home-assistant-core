@@ -26,7 +26,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def override_platforms() -> Generator[None]:
     """Override PLATFORMS."""
     with patch("homeassistant.components.meteo_france.PLATFORMS", []):
@@ -51,6 +51,7 @@ def _second_city(hass: HomeAssistant) -> MockConfigEntry:
     return config_entry
 
 
+@pytest.mark.usefixtures("override_platforms")
 async def test_only_one_city_per_department_provides_alerts(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
@@ -69,6 +70,7 @@ async def test_only_one_city_per_department_provides_alerts(
     assert second_entry.runtime_data.alert_coordinator is None
 
 
+@pytest.mark.usefixtures("override_platforms")
 async def test_unload_releases_the_department(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,

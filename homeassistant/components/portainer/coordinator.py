@@ -46,7 +46,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import CONTAINER_STATE_ACTIONS, DEFAULT_NAME, DOMAIN
+from .const import CONF_DISABLE_VOLUME_SIZE, CONTAINER_STATE_ACTIONS, DEFAULT_NAME, DOMAIN
 from .util import sanitize_container_name
 
 type PortainerConfigEntry = ConfigEntry[PortainerCoordinator]
@@ -315,9 +315,7 @@ class PortainerCoordinator(
                     self.portainer.get_containers(endpoint.id),
                     self.portainer.docker_version(endpoint.id),
                     self.portainer.docker_info(endpoint.id),
-                    self.portainer.docker_system_df(
-                        endpoint.id, data_type=DockerDFType.VOLUME, verbose=True
-                    ),
+                    self._async_fetch_volume_df(endpoint.id),
                     self.portainer.get_volumes(endpoint.id),
                 )
 
@@ -420,7 +418,11 @@ class PortainerCoordinator(
 
                 volume_usage_map = {
                     item["Name"]: item
-                    for item in (docker_system_df.volume_disk_usage.items or [])
+                    for item in (
+                        docker_system_df.volume_disk_usage.items or []
+                        if docker_system_df
+                        else []
+                    )
                 }
                 volume_map: dict[str, PortainerVolumeData] = {}
                 for volume in volumes:
@@ -493,7 +495,21 @@ class PortainerCoordinator(
         self._async_add_remove_endpoints(mapped_endpoints, timed_out_endpoints)
         self._async_sync_event_listeners(mapped_endpoints)
 
-        return mapped_endpoints
+        # Keep the last known data of timed-out endpoints, otherwise their
+        # entities become unavailable on every timeout
+        return {
+            endpoint_id: data
+            for endpoint_id, data in self._last_endpoint_data.items()
+            if endpoint_id in timed_out_endpoints
+        } | mapped_endpoints
+
+    async def _async_fetch_volume_df(self, endpoint_id: int) -> DockerSystemDF | None:
+        """Fetch volume usage, skipped when volume sizes are disabled."""
+        if self.config_entry.data.get(CONF_DISABLE_VOLUME_SIZE, False):
+            return None
+        return await self.portainer.docker_system_df(
+            endpoint_id, data_type=DockerDFType.VOLUME, verbose=True
+        )
 
     def async_register_endpoint_and_stack_devices(
         self,

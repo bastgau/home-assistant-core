@@ -34,7 +34,12 @@ import homeassistant.helpers.entity_registry as er
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
-from .const import API_MAX_RETRIES, DOMAIN, SUBENTRY_TYPE_ENVIRONMENT
+from .const import (
+    API_MAX_RETRIES,
+    CONF_DISABLE_VOLUME_SIZE,
+    DOMAIN,
+    SUBENTRY_TYPE_ENVIRONMENT,
+)
 from .coordinator import (
     PortainerCoordinator,
     PortainerDockerDiskSpaceCoordinator,
@@ -103,10 +108,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: PortainerConfigEntry) ->
 
     async def _defer_initial_refreshes(_: HomeAssistant) -> None:
         """Defer the first refresh until Home Assistant has started."""
-        hass.async_create_task(
-            docker_disk_space_coordinator.async_refresh(),
-            "portainer_docker_disk_space_initial_refresh",
-        )
+        # The df request is skipped altogether when volume sizes are disabled
+        if not entry.data.get(CONF_DISABLE_VOLUME_SIZE, False):
+            hass.async_create_task(
+                docker_disk_space_coordinator.async_refresh(),
+                "portainer_docker_disk_space_initial_refresh",
+            )
         hass.async_create_task(
             system_version_coordinator.async_refresh(),
             "portainer_system_version_initial_refresh",

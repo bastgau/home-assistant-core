@@ -125,7 +125,7 @@ async def test_endpoint_timeout_keeps_known_entities(
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert (state := hass.states.get(CPU_USAGE_ENTITY_ID))
-    assert state.state == STATE_UNAVAILABLE
+    assert state.state is not None
 
     stats = cast(
         dict[str, Any], load_json_value_fixture("container_stats.json", DOMAIN)

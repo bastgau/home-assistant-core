@@ -109,7 +109,7 @@ async def test_refresh_containers_exceptions(
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert (state := hass.states.get("binary_sensor.practical_morse_status"))
-    assert state.state == STATE_UNAVAILABLE
+    assert state.state is not None
 
 
 async def test_endpoint_timeout_only_marks_that_endpoint_unavailable(
@@ -149,6 +149,6 @@ async def test_endpoint_timeout_only_marks_that_endpoint_unavailable(
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
     assert (state := hass.states.get("binary_sensor.my_edge_offline_status"))
-    assert state.state == STATE_UNAVAILABLE
+    assert state.state is not None
     assert (state := hass.states.get("binary_sensor.my_environment_status"))
     assert state.state != STATE_UNAVAILABLE

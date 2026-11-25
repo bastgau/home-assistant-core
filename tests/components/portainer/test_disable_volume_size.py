@@ -67,7 +67,7 @@ async def test_volume_size_not_fetched_when_disabled(
     mock_portainer_client: AsyncMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """Test volume sizes are not measured and their sensors are not created."""
+    """Test no df request is made and the related sensors are not created."""
     mock_config_entry.add_to_hass(hass)
     hass.config_entries.async_update_entry(
         mock_config_entry,
@@ -76,10 +76,8 @@ async def test_volume_size_not_fetched_when_disabled(
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    mock_portainer_client.docker_system_df.assert_any_call(
-        1, data_type=DockerDFType.VOLUME, verbose=False
-    )
-    assert hass.states.get(DISK_USAGE_ENTITY_ID) is not None
+    mock_portainer_client.docker_system_df.assert_not_called()
+    assert hass.states.get(DISK_USAGE_ENTITY_ID) is None
     assert hass.states.get(VOLUME_SIZE_ENTITY_ID) is None
     assert hass.states.get(VOLUME_DISK_USAGE_ENTITY_ID) is None
 
